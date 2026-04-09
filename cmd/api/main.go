@@ -5,10 +5,14 @@ import (
 	"fmt"
 	"go-url-shortener/internal/config"
 	"go-url-shortener/internal/config/lib/logger"
+	httpMiddleware "go-url-shortener/internal/http/middleware"
 	"go-url-shortener/internal/storage/sqlite"
 	"log"
 	"log/slog"
 	"os"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 func setupLogger(envType config.EnvType) *slog.Logger {
@@ -42,6 +46,10 @@ func main() {
 		os.Exit(1)
 	}
 	_ = storage
+
+	router := chi.NewRouter()
+	router.Use(middleware.RequestID)
+	router.Use(httpMiddleware.LoggerMiddleware(log))
 
 	log.Info(fmt.Sprintf("main: starting app [%s]", slog.String("env", cfg.Env)))
 	log.Debug("main: debug mode on")
