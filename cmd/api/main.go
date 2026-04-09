@@ -50,6 +50,8 @@ func main() {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
 	router.Use(httpMiddleware.LoggerMiddleware(log))
+	router.Use(middleware.Recoverer)
+	router.Use(middleware.URLFormat)
 
 	log.Info(fmt.Sprintf("main: starting app [%s]", slog.String("env", cfg.Env)))
 	log.Debug("main: debug mode on")
