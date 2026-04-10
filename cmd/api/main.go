@@ -4,9 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"go-url-shortener/internal/config"
-	"go-url-shortener/internal/config/lib/logger"
+	urlHandlers "go-url-shortener/internal/http/handlers/url"
 	httpMiddleware "go-url-shortener/internal/http/middleware"
 	"go-url-shortener/internal/storage/sqlite"
+	"go-url-shortener/internal/utils/logger"
 	"log"
 	"log/slog"
 	"os"
@@ -52,6 +53,8 @@ func main() {
 	router.Use(httpMiddleware.LoggerMiddleware(log))
 	router.Use(middleware.Recoverer)
 	router.Use(middleware.URLFormat)
+
+	router.Post("/url", urlHandlers.NewSaveHandler(log))
 
 	log.Info(fmt.Sprintf("main: starting app [%s]", slog.String("env", cfg.Env)))
 	log.Debug("main: debug mode on")
