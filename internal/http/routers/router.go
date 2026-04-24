@@ -23,7 +23,7 @@ func New(
 	router.Use(middleware.URLFormat)
 
 	router.Post("/url", saveHandler.Handle)
-	router.Post("/{alias}", redirectHandler.Handle)
+	router.Get("/{alias}", redirectHandler.Handle)
 	// router.Delete("/{alias}", deleteHandler.Handle)
 
 	return router
