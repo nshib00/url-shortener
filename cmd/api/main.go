@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"go-url-shortener/internal/config"
+	hDelete "go-url-shortener/internal/http/handlers/delete"
 	"go-url-shortener/internal/http/handlers/redirect"
 	"go-url-shortener/internal/http/handlers/save"
 	"go-url-shortener/internal/http/routers"
@@ -45,15 +46,19 @@ func main() {
 
 	storage, err := sqlite.NewStorage(cfg.StoragePath)
 	if err != nil {
-		log.Error("main: failed to init storage", logger.Err(err))
+		log.Error(
+			"main: failed to init storage",
+			logger.Err(err),
+			slog.String("storage_path", cfg.StoragePath),
+		)
 		os.Exit(1)
 	}
 
 	saveHandler := save.New(log, storage)
 	redirectHandler := redirect.New(log, storage)
-	// deleteHandler := delete.New(log, storage)
+	deleteHandler := hDelete.New(log, storage)
 
-	router := routers.New(log, saveHandler, redirectHandler /*deleteHandler*/)
+	router := routers.New(log, saveHandler, redirectHandler, deleteHandler)
 
 	log.Info(fmt.Sprintf("main: starting server on %s", slog.String("address", cfg.HTTPServer.Address)))
 
