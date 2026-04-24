@@ -4,16 +4,15 @@ import (
 	"flag"
 	"fmt"
 	"go-url-shortener/internal/config"
-	urlHandlers "go-url-shortener/internal/http/handlers/url"
-	httpMiddleware "go-url-shortener/internal/http/middleware"
+	"go-url-shortener/internal/http/handlers/redirect"
+	"go-url-shortener/internal/http/handlers/save"
+	"go-url-shortener/internal/http/routers"
 	"go-url-shortener/internal/storage/sqlite"
 	"go-url-shortener/internal/utils/logger"
 	"log"
 	"log/slog"
+	"net/http"
 	"os"
-
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 func setupLogger(envType config.EnvType) *slog.Logger {
@@ -41,21 +40,33 @@ func main() {
 	cfg := config.MustLoad(envType)
 	log := setupLogger(envType)
 
+	log.Info(fmt.Sprintf("main: starting app [%s]", slog.String("env", cfg.Env)))
+	log.Debug("main: debug mode on")
+
 	storage, err := sqlite.NewStorage(cfg.StoragePath)
 	if err != nil {
 		log.Error("main: failed to init storage", logger.Err(err))
 		os.Exit(1)
 	}
-	_ = storage
 
-	router := chi.NewRouter()
-	router.Use(middleware.RequestID)
-	router.Use(httpMiddleware.LoggerMiddleware(log))
-	router.Use(middleware.Recoverer)
-	router.Use(middleware.URLFormat)
+	saveHandler := save.New(log, storage)
+	redirectHandler := redirect.New(log, storage)
+	// deleteHandler := delete.New(log, storage)
 
-	router.Post("/url", urlHandlers.NewSaveHandler(log))
+	router := routers.New(log, saveHandler, redirectHandler /*deleteHandler*/)
 
-	log.Info(fmt.Sprintf("main: starting app [%s]", slog.String("env", cfg.Env)))
-	log.Debug("main: debug mode on")
+	log.Info(fmt.Sprintf("main: starting server on %s", slog.String("address", cfg.HTTPServer.Address)))
+
+	srv := &http.Server{
+		Addr:         cfg.HTTPServer.Address,
+		Handler:      router,
+		ReadTimeout:  cfg.HTTPServer.Timeout,
+		WriteTimeout: cfg.HTTPServer.Timeout,
+		IdleTimeout:  cfg.HTTPServer.IdleTimeout,
+	}
+	if err := srv.ListenAndServe(); err != nil {
+		log.Error("main: failed to start server")
+	}
+	log.Error("server stopped")
+
 }
