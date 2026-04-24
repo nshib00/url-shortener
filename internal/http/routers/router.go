@@ -26,5 +26,10 @@ func New(
 	router.Get("/{alias}", redirectHandler.Handle)
 	router.Delete("/{alias}", deleteHandler.Handle)
 
+	// откуда будем брать secret key?
+	// router.Group(func(r chi.Router) {
+	// 	r.Use(AuthMiddleware(secretKey)),
+	// })
+
 	return router
 }
