@@ -12,12 +12,17 @@ type Config struct {
 	Env         string `yaml:"env" env-default:"local"`
 	StoragePath string `yaml:"storage_path" env-required:"true"`
 	HTTPServer  HTTPServer
+	Auth        Auth
 }
 
 type HTTPServer struct {
 	Address     string        `yaml:"address" env-default:"localhost:8319"`
 	Timeout     time.Duration `yaml:"timeout" env-default:"4s"`
 	IdleTimeout time.Duration `yaml:"idle_timeout" env-default:"60s"`
+}
+
+type Auth struct {
+	SecretKey string `env:"JWT_SECRET" env-required:"true"`
 }
 
 func MustLoad(envType EnvType) *Config {
