@@ -17,26 +17,34 @@ func NewStorage(storagePath string) (*Storage, error) {
 		return nil, fmt.Errorf("%s: %w", operation, err)
 	}
 
-	stmt, err := db.Prepare(`
+	tx, err := db.Begin() // транзакция нужна для создания нескольких таблиц без отдельных Prepare
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", operation, err)
+	}
+	defer tx.Rollback()
+
+	queries := []string{`
 		CREATE TABLE IF NOT EXISTS urls (
 			id INTEGER PRIMARY KEY,
 			alias TEXT NOT NULL UNIQUE,
 			url TEXT NOT NULL
-		);
-		CREATE TABLE IF NOT EXISTS users (
+		);`,
+		`CREATE TABLE IF NOT EXISTS users (
 			id INTEGER PRIMARY KEY,
 			name TEXT NOT NULL UNIQUE,
 			password_hash TEXT NOT NULL
-		);
-		CREATE INDEX IF NOT EXISTS idx_alias ON urls(alias);
-	`)
-	if err != nil {
+		);`,
+		`CREATE INDEX IF NOT EXISTS idx_alias ON urls(alias);`,
+	}
+
+	for _, query := range queries {
+		if _, err := db.Exec(query); err != nil {
+			return nil, fmt.Errorf("%s: %w", operation, err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("%s: %w", operation, err)
 	}
 
-	_, err = stmt.Exec()
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", operation, err)
-	}
 	return &Storage{db: db}, nil
 }

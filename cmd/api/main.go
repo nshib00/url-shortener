@@ -7,6 +7,7 @@ import (
 	hDelete "go-url-shortener/internal/http/handlers/urls/delete"
 	"go-url-shortener/internal/http/handlers/urls/redirect"
 	"go-url-shortener/internal/http/handlers/urls/save"
+	"go-url-shortener/internal/http/handlers/users/signup"
 	"go-url-shortener/internal/http/routers"
 	"go-url-shortener/internal/storage/sqlite"
 	"go-url-shortener/internal/utils/logger"
@@ -57,8 +58,16 @@ func main() {
 	saveHandler := save.New(log, storage)
 	redirectHandler := redirect.New(log, storage)
 	deleteHandler := hDelete.New(log, storage)
+	signupHandler := signup.New(log, storage)
 
-	router := routers.New(log, saveHandler, redirectHandler, deleteHandler)
+	router := routers.New(
+		log,
+		cfg.Auth.SecretKey,
+		saveHandler,
+		redirectHandler,
+		deleteHandler,
+		signupHandler,
+	)
 
 	log.Info(fmt.Sprintf("main: starting server on %s", slog.String("address", cfg.HTTPServer.Address)))
 
