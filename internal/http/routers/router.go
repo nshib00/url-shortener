@@ -4,6 +4,7 @@ import (
 	hDelete "go-url-shortener/internal/http/handlers/urls/delete"
 	"go-url-shortener/internal/http/handlers/urls/redirect"
 	"go-url-shortener/internal/http/handlers/urls/save"
+	"go-url-shortener/internal/http/handlers/users/login"
 	"go-url-shortener/internal/http/handlers/users/signup"
 	httpMiddleware "go-url-shortener/internal/http/middleware"
 	"log/slog"
@@ -19,7 +20,7 @@ func New(
 	redirectHandler *redirect.RedirectHandler,
 	deleteHandler *hDelete.DeleteHandler,
 	signupHandler *signup.SignupHandler,
-	//loginHandler *login.LoginHandler,
+	loginHandler *login.LoginHandler,
 ) *chi.Mux {
 	router := chi.NewRouter()
 	router.Use(middleware.RequestID)
@@ -30,7 +31,7 @@ func New(
 	router.Delete("/{alias}", deleteHandler.Handle)
 
 	router.Post("/auth/signup", signupHandler.Handle)
-	//router.Post("/auth/login", loginHandler.Handle)
+	router.Post("/auth/login", loginHandler.Handle)
 	router.Get("/{alias}", redirectHandler.Handle)
 
 	router.Group(func(r chi.Router) {
