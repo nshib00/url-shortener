@@ -4,12 +4,14 @@ import (
 	resp "go-url-shortener/internal/utils/api/response"
 	"log/slog"
 	"net/http"
+	"net/url"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
 )
 
+//go:generate go run github.com/vektra/mockery/v2 --name=URLGetter
 type URLGetter interface {
 	GetURL(alias string) (string, error)
 }
@@ -45,17 +47,23 @@ func (h *RedirectHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		render.JSON(w, r, "invalid request: alias is empty")
 		return
 	}
-	url, err := h.urlGetter.GetURL(alias)
+	urlFromDB, err := h.urlGetter.GetURL(alias)
 	if err != nil {
 		log.Error("handlers[redirect]: failed to find url by alias", slog.String("alias", alias))
 		render.JSON(w, r, resp.Error("internal error"))
+		return
+	}
+	parsedURL, err := url.ParseRequestURI(urlFromDB)
+	if err != nil || parsedURL.Scheme == "" {
+		log.Error("handlers[redirect]: invalid url", slog.String("url", urlFromDB))
+		render.JSON(w, r, resp.Error("invalid url"))
 		return
 	}
 
 	log.Info(
 		"handlers[redirect]: redirect successful",
 		slog.String("alias", alias),
-		slog.String("url", url),
+		slog.String("url", urlFromDB),
 	)
-	http.Redirect(w, r, url, http.StatusFound)
+	http.Redirect(w, r, urlFromDB, http.StatusFound)
 }
