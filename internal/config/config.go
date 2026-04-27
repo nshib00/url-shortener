@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
+	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -26,6 +27,10 @@ type Auth struct {
 }
 
 func MustLoad(envType EnvType) *Config {
+	if err := godotenv.Load(); err != nil {
+		log.Println("config: no .env file found, using system env")
+	}
+
 	if envType == EnvUnknown {
 		log.Fatal("config: config path is not set")
 	}
