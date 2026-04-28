@@ -9,14 +9,14 @@ import (
 	"github.com/mattn/go-sqlite3"
 )
 
-func (s *Storage) SaveURL(urlToSave string, alias string) (int64, error) {
+func (s *Storage) SaveURL(userID int, urlToSave string, alias string) (int64, error) {
 	const operation = "storage.sqlite.SaveURL"
 
-	stmt, err := s.db.Prepare("INSERT INTO urls (alias, url) VALUES (?, ?)")
+	stmt, err := s.db.Prepare("INSERT INTO urls (alias, url, user_id) VALUES (?, ?, ?)")
 	if err != nil {
 		return 0, fmt.Errorf("%s: %w", operation, err)
 	}
-	result, err := stmt.Exec(alias, urlToSave)
+	result, err := stmt.Exec(alias, urlToSave, userID)
 	if err != nil {
 		if sqliteErr, ok := errors.AsType[sqlite3.Error](err); ok {
 			if sqliteErr.ExtendedCode == sqlite3.ErrConstraintUnique {
@@ -51,14 +51,14 @@ func (s *Storage) GetURL(alias string) (string, error) {
 	return url, nil
 }
 
-func (s *Storage) DeleteURL(alias string) error {
+func (s *Storage) DeleteURL(userID int, alias string) error {
 	const operation = "storage.sqlite.DeleteURL"
 
-	stmt, err := s.db.Prepare("DELETE FROM urls WHERE alias = ?")
+	stmt, err := s.db.Prepare("DELETE FROM urls WHERE alias = ? AND user_id = ?")
 	if err != nil {
 		return fmt.Errorf("%s: %w", operation, err)
 	}
-	result, err := stmt.Exec(alias)
+	result, err := stmt.Exec(alias, userID)
 	if err != nil {
 		return fmt.Errorf("%s: %w", operation, err)
 	}

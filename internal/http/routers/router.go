@@ -27,17 +27,15 @@ func New(
 	router.Use(httpMiddleware.LoggerMiddleware(log))
 	router.Use(middleware.Recoverer)
 
-	router.Post("/url", saveHandler.Handle)
-	router.Delete("/{alias}", deleteHandler.Handle)
-
 	router.Post("/auth/signup", signupHandler.Handle)
 	router.Post("/auth/login", loginHandler.Handle)
+
 	router.Get("/{alias}", redirectHandler.Handle)
 
 	router.Group(func(r chi.Router) {
 		r.Use(httpMiddleware.AuthMiddleware(secretKey))
-		// r.Post("/url", saveHandler.Handle)
-		// r.Delete("/{alias}", deleteHandler.Handle)
+		r.Post("/url", saveHandler.Handle)
+		r.Delete("/{alias}", deleteHandler.Handle)
 	})
 
 	return router

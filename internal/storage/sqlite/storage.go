@@ -27,7 +27,9 @@ func NewStorage(storagePath string) (*Storage, error) {
 		CREATE TABLE IF NOT EXISTS urls (
 			id INTEGER PRIMARY KEY,
 			alias TEXT NOT NULL UNIQUE,
-			url TEXT NOT NULL
+			url TEXT NOT NULL,
+			user_id INTEGER NOT NULL,
+			FOREIGN KEY (user_id) REFERENCES users(id)
 		);`,
 		`CREATE TABLE IF NOT EXISTS users (
 			id INTEGER PRIMARY KEY,

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	httpMiddleware "go-url-shortener/internal/http/middleware"
 	"go-url-shortener/internal/storage"
 	resp "go-url-shortener/internal/utils/api/response"
 
@@ -14,7 +15,7 @@ import (
 )
 
 type URLDeleter interface {
-	DeleteURL(alias string) error
+	DeleteURL(userID int, alias string) error
 }
 
 type DeleteHandler struct {
@@ -37,16 +38,24 @@ func (h *DeleteHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		slog.String("request_id", middleware.GetReqID(r.Context())),
 	)
 
+	ctxVal := r.Context().Value(httpMiddleware.UserIDKey)
+	userID, ok := ctxVal.(int)
+	if !ok {
+		log.Info("handlers[save]: unauthorized: request with wrong user ID", slog.Any("userID", ctxVal))
+		render.JSON(w, r, resp.Error("unauthorized"))
+		return
+	}
+
 	alias := chi.URLParam(r, "alias")
 	if alias == "" {
 		log.Info("handlers[delete]: empty alias passed")
 		render.JSON(w, r, "invalid request: alias is empty")
 		return
 	}
-	if err := h.urlDeleter.DeleteURL(alias); err != nil {
+	if err := h.urlDeleter.DeleteURL(userID, alias); err != nil {
 		if errors.Is(err, storage.ErrURLNotFound) {
-			log.Info("handlers[delete]: alias not found", slog.String("alias", alias))
-			render.JSON(w, r, resp.Error("alias not found"))
+			log.Info("handlers[delete]: not found or forbidden", slog.String("alias", alias))
+			render.JSON(w, r, resp.Error("not found or forbidden"))
 			return
 		}
 		log.Error("handlers[delete]: failed to delete url by alias", slog.String("alias", alias))
@@ -54,5 +63,5 @@ func (h *DeleteHandler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Info("handlers[delete]: url successfully deleted")
-	render.JSON(w, r, resp.OK())
+	w.WriteHeader(http.StatusNoContent)
 }
