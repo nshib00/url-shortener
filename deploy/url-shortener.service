@@ -5,7 +5,7 @@ After=network.target
 [Service]
 User=root
 WorkingDirectory=/root/apps/url-shortener
-ExecStart=/root/apps/url-shortener/url-shortener
+ExecStart=/root/apps/url-shortener/url-shortener -config=prod
 Restart=always
 RestartSec=4
 StandardOutput=inherit
