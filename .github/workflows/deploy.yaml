@@ -54,11 +54,14 @@ jobs:
           ls -la ${{ github.workspace }}/deploy
       - name: Create environment file on server
         run: |
-          ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} "\
-          touch ${{ env.ENV_FILE_PATH }} && \
-          chmod 600 ${{ env.ENV_FILE_PATH }} && \
-          echo 'CONFIG_PATH=${{ env.CONFIG_PATH }}' > ${{ env.ENV_FILE_PATH }} && \
-          echo 'HTTP_SERVER_PASSWORD=${{ secrets.AUTH_PASS }}' >> ${{ env.ENV_FILE_PATH }}"
+          ssh -i deploy_key.pem -o StrictHostKeyChecking=no ${{ env.HOST }} "
+            cat > ${{ env.ENV_FILE_PATH }} << 'EOF'
+            CONFIG_PATH=${{ env.CONFIG_PATH }}
+            HTTP_SERVER_PASSWORD=${{ secrets.AUTH_PASS }}
+            SecretKey=${{ secrets.SECRET_KEY }}
+            EOF
+            chmod 600 ${{ env.ENV_FILE_PATH }}
+          "
       - name: Copy systemd service file
         run: |
           scp -i deploy_key.pem -o StrictHostKeyChecking=no ${{ github.workspace }}/deploy/url-shortener.service ${{ env.HOST }}:/tmp/url-shortener.service
