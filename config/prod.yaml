@@ -1,4 +1,4 @@
-env: "local"
+env: "prod"
 storage_path: "./internal/storage/storage.db"
 http_server:
   address: "0.0.0.0:8319"
