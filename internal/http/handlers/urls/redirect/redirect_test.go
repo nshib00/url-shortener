@@ -3,6 +3,7 @@ package redirect_test
 import (
 	"go-url-shortener/internal/http/handlers/urls/redirect"
 	"go-url-shortener/internal/http/handlers/urls/redirect/mocks"
+	"go-url-shortener/internal/http/testutils"
 	"go-url-shortener/internal/storage"
 	"go-url-shortener/internal/utils/logger/handlers/mocklogger"
 	"net/http"
@@ -16,44 +17,87 @@ import (
 
 func TestRedirectHandler(t *testing.T) {
 	cases := []struct {
-		name      string
-		alias     string
-		url       string
-		respError string
-		mockError error
+		name          string
+		alias         string
+		url           string
+		userID        int
+		respError     string
+		mockError     error
+		expectedCalls bool
+		needAuth      bool
 	}{
 		{
-			name:  "Success",
-			alias: "test",
-			url:   "https://www.google.com/",
+			name:          "Success - with auth",
+			alias:         "test",
+			url:           "https://www.google.com/",
+			userID:        12345,
+			expectedCalls: true,
+			needAuth:      true,
 		},
 		{
-			name:  "Empty alias",
-			alias: "",
-			url:   "https://www.google.com/",
+			name:          "Success - without auth (public route)",
+			alias:         "test-public",
+			url:           "https://www.google.com/",
+			userID:        0,
+			expectedCalls: true,
+			needAuth:      false,
 		},
 		{
-			name:      "Empty URL",
-			alias:     "empty-url",
-			url:       "",
-			respError: "invalid request: alias is empty",
-			mockError: storage.ErrURLNotFound,
+			name:          "Empty alias",
+			alias:         "",
+			url:           "https://www.google.com/",
+			userID:        12345,
+			expectedCalls: false,
+			needAuth:      true,
 		},
 		{
-			name:  "Alias with dot",
-			alias: "my.alias",
-			url:   "https://www.google.com/",
+			name:          "Empty URL",
+			alias:         "empty-url",
+			url:           "",
+			userID:        12345,
+			respError:     "invalid request: alias is empty",
+			mockError:     storage.ErrURLNotFound,
+			expectedCalls: true,
+			needAuth:      true,
 		},
 		{
-			name:      "Random string in URL passed",
-			alias:     "random-str",
-			url:       "some-string-but-not-url",
-			respError: "invalid url",
+			name:          "Alias with dot",
+			alias:         "my.alias",
+			url:           "https://www.google.com/",
+			userID:        12345,
+			expectedCalls: true,
+			needAuth:      true,
 		},
 		{
-			name:  "Short alias",
-			alias: "a",
-			url:   "https://www.google.com/",
+			name:          "Random string in URL passed",
+			alias:         "random-str",
+			url:           "some-string-but-not-url",
+			userID:        12345,
+			respError:     "invalid url",
+			expectedCalls: true,
+			needAuth:      true,
+		},
+		{
+			name:          "Short alias",
+			alias:         "a",
+			url:           "https://www.google.com/",
+			userID:        12345,
+			expectedCalls: true,
+			needAuth:      true,
+		},
+		{
+			name:      "Unauthorized - missing auth header",
+			alias:     "protected",
+			userID:    0,
+			respError: "missing auth header",
+			needAuth:  true,
+		},
+		{
+			name:      "Unauthorized - invalid token",
+			alias:     "protected",
+			userID:    -1, // специальное значение для невалидного токена
+			respError: "invalid token",
+			needAuth:  true,
 		},
 	}
 
@@ -65,8 +109,10 @@ func TestRedirectHandler(t *testing.T) {
 				handler := redirect.New(mocklogger.NewMockLogger(), mocks.NewURLGetter(tt))
 				r := chi.NewRouter()
 				r.Get("/{alias}", handler.Handle)
+
 				ts := httptest.NewServer(r)
 				defer ts.Close()
+
 				res, err := http.Get(ts.URL + "/")
 				require.NoError(tt, err)
 				assert.Equal(tt, http.StatusNotFound, res.StatusCode)
@@ -74,7 +120,8 @@ func TestRedirectHandler(t *testing.T) {
 			}
 
 			urlGetterMock := mocks.NewURLGetter(tt)
-			if tc.alias != "" {
+
+			if tc.expectedCalls && tc.userID >= 0 {
 				urlGetterMock.On("GetURL", tc.alias).
 					Return(tc.url, tc.mockError).
 					Once()
@@ -82,7 +129,16 @@ func TestRedirectHandler(t *testing.T) {
 
 			handler := redirect.New(mocklogger.NewMockLogger(), urlGetterMock)
 			r := chi.NewRouter()
-			r.Get("/{alias}", handler.Handle)
+
+			if tc.needAuth {
+				authMiddleware := testutils.CreateAuthMiddleware()
+				r.Group(func(r chi.Router) {
+					r.Use(authMiddleware)
+					r.Get("/{alias}", handler.Handle)
+				})
+			} else {
+				r.Get("/{alias}", handler.Handle)
+			}
 
 			ts := httptest.NewServer(r)
 			defer ts.Close()
@@ -93,23 +149,36 @@ func TestRedirectHandler(t *testing.T) {
 				},
 			}
 
-			res, err := client.Get(ts.URL + "/" + tc.alias)
-			require.NoError(t, err)
+			req, err := http.NewRequest("GET", ts.URL+"/"+tc.alias, nil)
+			require.NoError(tt, err)
+
+			if tc.userID > 0 {
+				token := testutils.GenerateTestToken(tt, tc.userID)
+				req.Header.Set("Authorization", "Bearer "+token)
+			} else if tc.userID == -1 {
+				req.Header.Set("Authorization", "Bearer invalid_token")
+			}
+
+			res, err := client.Do(req)
+			require.NoError(tt, err)
+			defer res.Body.Close()
+
+			if tc.respError == "missing auth header" || tc.respError == "invalid token" {
+				assert.Equal(tt, http.StatusUnauthorized, res.StatusCode)
+				return
+			}
 
 			if tc.alias == "" {
-				res, err := client.Get(ts.URL + "/")
-				require.NoError(tt, err)
 				assert.Equal(tt, http.StatusNotFound, res.StatusCode)
 				return
 			}
-			if tc.respError != "" {
+
+			if tc.respError != "" && tc.respError != "missing auth header" && tc.respError != "invalid token" {
 				assert.Equal(tt, http.StatusOK, res.StatusCode)
 				return
 			}
-
-			assert.Equal(t, http.StatusFound, res.StatusCode) // 302
-			assert.Equal(t, tc.url, res.Header.Get("Location"))
+			assert.Equal(tt, http.StatusFound, res.StatusCode)
+			assert.Equal(tt, tc.url, res.Header.Get("Location"))
 		})
 	}
-
 }
